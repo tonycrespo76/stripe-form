@@ -7,7 +7,7 @@ import { decrypt, encrypt } from "./crypto";
 const ISSUER = "Payment Form";
 
 export async function getOrCreateAdmin(email: string) {
-  await db.insert(admins).values({ email }).onDuplicateKeyUpdate({ set: { email } });
+  await db.insert(admins).values({ email }).onConflictDoNothing();
   const [a] = await db.select().from(admins).where(eq(admins.email, email));
   return a;
 }

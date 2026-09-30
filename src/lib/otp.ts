@@ -58,9 +58,10 @@ export async function verifyOtp(email: string, code: string) {
 
   if (!safeEqual(row.codeHash, hmac(`${email}:${code}`))) return false;
 
-  const [res] = await db
+  const consumed = await db
     .update(otpCodes)
     .set({ consumedAt: new Date() })
-    .where(and(eq(otpCodes.id, row.id), isNull(otpCodes.consumedAt)));
-  return res.affectedRows === 1;
+    .where(and(eq(otpCodes.id, row.id), isNull(otpCodes.consumedAt)))
+    .returning({ id: otpCodes.id });
+  return consumed.length === 1;
 }

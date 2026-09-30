@@ -10,7 +10,7 @@ export async function markPaidAndSendReceipt(paymentIntentId: string) {
     .where(eq(payments.stripePaymentIntentId, paymentIntentId));
 
   // Atomic claim: only one caller (webhook retry, etc.) wins the update.
-  const [claim] = await db
+  const claimed = await db
     .update(payments)
     .set({ receiptSentAt: new Date() })
     .where(
@@ -18,8 +18,9 @@ export async function markPaidAndSendReceipt(paymentIntentId: string) {
         eq(payments.stripePaymentIntentId, paymentIntentId),
         isNull(payments.receiptSentAt),
       ),
-    );
-  if (claim.affectedRows === 0) return;
+    )
+    .returning({ id: payments.id });
+  if (claimed.length === 0) return;
 
   const [p] = await db
     .select()
