@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { requestCode, submitCode, type FormState } from "../actions";
 
 const input =
@@ -12,6 +12,7 @@ export default function LoginPage() {
   const [sent, sendAction, sending] = useActionState<FormState, FormData>(requestCode, {});
   const [verified, verifyAction, verifying] = useActionState<FormState, FormData>(submitCode, {});
 
+  const [typed, setTyped] = useState("");
   const email = verified.email ?? sent.email;
   const codeSent = sent.codeSent || verified.codeSent;
   const error = verified.error ?? sent.error;
@@ -27,7 +28,16 @@ export default function LoginPage() {
 
       {!codeSent ? (
         <form action={sendAction} className="space-y-4">
-          <input name="email" type="email" required placeholder="you@example.com" className={input} />
+          <input
+            name="email"
+            type="email"
+            required
+            autoComplete="email"
+            placeholder="you@example.com"
+            value={typed}
+            onChange={(e) => setTyped(e.target.value)}
+            className={input}
+          />
           {error && <p className="text-sm text-red-600">{error}</p>}
           <button disabled={sending} className={button}>
             {sending ? "Sending…" : "Email me a code"}
