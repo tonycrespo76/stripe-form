@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import type Stripe from "stripe";
 import { db, payments } from "@/db";
 import { markPaidAndSendReceipt } from "@/lib/receipts";
+import { markRefundedAndNotify } from "@/lib/refunds";
 import { stripe } from "@/lib/stripe";
 
 export async function POST(req: Request) {
@@ -25,13 +26,12 @@ export async function POST(req: Request) {
   } else if (event.type === "charge.refunded") {
     const charge = event.data.object;
     const pi = typeof charge.payment_intent === "string" ? charge.payment_intent : charge.payment_intent?.id;
-    if (pi) {
+    if (pi && charge.refunded) {
+      await markRefundedAndNotify(pi);
+    } else if (pi) {
       await db
         .update(payments)
-        .set({
-          status: charge.refunded ? "refunded" : "partially_refunded",
-          refundedAt: new Date(),
-        })
+        .set({ status: "partially_refunded", refundedAt: new Date() })
         .where(eq(payments.stripePaymentIntentId, pi));
     }
   } else if (event.type === "payment_intent.payment_failed") {

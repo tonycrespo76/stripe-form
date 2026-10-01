@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { db, payments } from "@/db";
+import { markRefundedAndNotify } from "@/lib/refunds";
 import { stripe } from "@/lib/stripe";
 import { adminEmails, issueOtp, verifyOtp } from "@/lib/otp";
 import { clearSession, getSession, requireAdmin, setSession } from "@/lib/session";
@@ -103,10 +104,7 @@ export async function refundPayment(_: FormState, fd: FormData): Promise<FormSta
       return { error: (e as Error).message || "Refund failed." };
     }
   }
-  await db
-    .update(payments)
-    .set({ status: "refunded", refundedAt: new Date() })
-    .where(eq(payments.id, p.id));
+  await markRefundedAndNotify(p.stripePaymentIntentId);
   revalidatePath("/admin");
   return {};
 }

@@ -50,3 +50,20 @@ export function receiptEmail(p: {
     html: `<h2>Payment receipt</h2><p>Hi ${esc(p.name)}, thanks for your payment.</p><table cellpadding="6"><tr><td>Amount</td><td><b>${total}</b></td></tr><tr><td>Reference</td><td>${esc(p.id)}</td></tr><tr><td>Date</td><td>${when}</td></tr></table>`,
   };
 }
+
+export function refundEmail(p: {
+  name: string;
+  amount: number;
+  currency: string;
+  id: string;
+}) {
+  const total = new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: p.currency.toUpperCase(),
+  }).format(p.amount / 100);
+  return {
+    subject: `Your refund of ${total} is on its way`,
+    text: `Hi ${p.name},\n\nWe've refunded your payment of ${total}.\nReference: ${p.id}\n\nIt typically takes 5-10 business days to appear on your statement, depending on your bank.\n`,
+    html: `<h2>Refund issued</h2><p>Hi ${esc(p.name)}, we've refunded your payment.</p><table cellpadding="6"><tr><td>Refunded</td><td><b>${total}</b></td></tr><tr><td>Reference</td><td>${esc(p.id)}</td></tr></table><p>It typically takes 5–10 business days to appear on your statement, depending on your bank.</p>`,
+  };
+}
