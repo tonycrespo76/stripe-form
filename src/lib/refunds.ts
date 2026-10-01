@@ -1,32 +1,44 @@
-import { and, eq, ne } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db, payments } from "@/db";
 import { refundEmail, sendMail } from "./mailer";
 
 /**
- * Marks a payment fully refunded and emails the customer exactly once.
- * Safe to call from both the admin action and the charge.refunded webhook.
+ * Records the cumulative refunded amount (Stripe's charge.amount_refunded) and
+ * emails the customer about the newly refunded portion, partial or full.
+ * Idempotent: the admin action, the webhook and Stripe retries can all call it
+ * with the same total and only the first one sends an email.
  */
-export async function markRefundedAndNotify(paymentIntentId: string) {
+export async function syncRefund(paymentIntentId: string, totalRefunded: number) {
   const [p] = await db
+    .select()
+    .from(payments)
+    .where(eq(payments.stripePaymentIntentId, paymentIntentId));
+  if (!p || totalRefunded <= p.refundedAmount) return;
+
+  // Optimistic claim on the previous total: only one concurrent caller wins.
+  const claimed = await db
     .update(payments)
-    .set({ status: "refunded", refundedAt: new Date() })
+    .set({
+      refundedAmount: totalRefunded,
+      status: totalRefunded >= p.amount ? "refunded" : "partially_refunded",
+      refundedAt: new Date(),
+    })
     .where(
-      and(
-        eq(payments.stripePaymentIntentId, paymentIntentId),
-        ne(payments.status, "refunded"), // only the first caller wins
-      ),
+      and(eq(payments.id, p.id), eq(payments.refundedAmount, p.refundedAmount)),
     )
-    .returning();
-  if (!p) return;
+    .returning({ id: payments.id });
+  if (claimed.length === 0) return;
 
   try {
     await sendMail({
       to: p.email,
       ...refundEmail({
         name: p.name,
-        amount: p.amount,
         currency: p.currency,
         id: p.stripePaymentIntentId,
+        refunded: totalRefunded - p.refundedAmount,
+        paymentAmount: p.amount,
+        totalRefunded,
       }),
     });
   } catch (e) {

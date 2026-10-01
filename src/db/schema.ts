@@ -50,6 +50,7 @@ export const payments = pgTable(
     status: varchar("status", { length: 32 }).notNull().default("pending"),
     receiptSentAt: ts("receipt_sent_at"),
     refundedAt: ts("refunded_at"),
+    refundedAmount: integer("refunded_amount").notNull().default(0), // cumulative, minor units
     createdAt: ts("created_at").notNull().defaultNow(),
   },
   (t) => [index("payments_created_idx").on(t.createdAt)],

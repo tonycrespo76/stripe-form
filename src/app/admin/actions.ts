@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { db, payments } from "@/db";
-import { markRefundedAndNotify } from "@/lib/refunds";
+import { syncRefund } from "@/lib/refunds";
 import { stripe } from "@/lib/stripe";
 import { adminEmails, issueOtp, verifyOtp } from "@/lib/otp";
 import { clearSession, getSession, requireAdmin, setSession } from "@/lib/session";
@@ -82,7 +82,7 @@ export async function logout() {
   redirect("/admin/login");
 }
 
-/** Full refund of a succeeded payment. Status is also synced by the charge.refunded webhook. */
+/** Refunds whatever remains of a payment. Status is also synced by the charge.refunded webhook. */
 export async function refundPayment(_: FormState, fd: FormData): Promise<FormState> {
   await requireAdmin();
   const id = Number(fd.get("id"));
@@ -90,7 +90,9 @@ export async function refundPayment(_: FormState, fd: FormData): Promise<FormSta
     ? await db.select().from(payments).where(eq(payments.id, id))
     : [];
   if (!p) return { error: "Payment not found." };
-  if (p.status !== "succeeded") return { error: "Only succeeded payments can be refunded." };
+  if (p.status !== "succeeded" && p.status !== "partially_refunded") {
+    return { error: "This payment can't be refunded." };
+  }
 
   try {
     await stripe().refunds.create(
@@ -104,7 +106,14 @@ export async function refundPayment(_: FormState, fd: FormData): Promise<FormSta
       return { error: (e as Error).message || "Refund failed." };
     }
   }
-  await markRefundedAndNotify(p.stripePaymentIntentId);
+  // Use Stripe's own cumulative total so this agrees with the webhook.
+  const pi = await stripe().paymentIntents.retrieve(p.stripePaymentIntentId, {
+    expand: ["latest_charge"],
+  });
+  const charge = pi.latest_charge;
+  if (charge && typeof charge !== "string") {
+    await syncRefund(p.stripePaymentIntentId, charge.amount_refunded);
+  }
   revalidatePath("/admin");
   return {};
 }

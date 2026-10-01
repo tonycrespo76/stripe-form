@@ -53,17 +53,30 @@ export function receiptEmail(p: {
 
 export function refundEmail(p: {
   name: string;
-  amount: number;
   currency: string;
   id: string;
+  refunded: number; // newly refunded amount, minor units
+  paymentAmount: number; // original payment
+  totalRefunded: number; // cumulative incl. this refund
 }) {
-  const total = new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: p.currency.toUpperCase(),
-  }).format(p.amount / 100);
+  const fmt = (cents: number) =>
+    new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: p.currency.toUpperCase(),
+    }).format(cents / 100);
+  const partial = p.totalRefunded < p.paymentAmount;
+  const refunded = fmt(p.refunded);
+  const remaining = fmt(p.paymentAmount - p.totalRefunded);
+  const lead = partial
+    ? `We've refunded ${refunded} of your ${fmt(p.paymentAmount)} payment.`
+    : `We've refunded your payment of ${refunded}.`;
+  const timing =
+    "It typically takes 5-10 business days to appear on your statement, depending on your bank.";
   return {
-    subject: `Your refund of ${total} is on its way`,
-    text: `Hi ${p.name},\n\nWe've refunded your payment of ${total}.\nReference: ${p.id}\n\nIt typically takes 5-10 business days to appear on your statement, depending on your bank.\n`,
-    html: `<h2>Refund issued</h2><p>Hi ${esc(p.name)}, we've refunded your payment.</p><table cellpadding="6"><tr><td>Refunded</td><td><b>${total}</b></td></tr><tr><td>Reference</td><td>${esc(p.id)}</td></tr></table><p>It typically takes 5–10 business days to appear on your statement, depending on your bank.</p>`,
+    subject: partial
+      ? `Partial refund of ${refunded} issued`
+      : `Your refund of ${refunded} is on its way`,
+    text: `Hi ${p.name},\n\n${lead}\n${partial ? `Remaining charged: ${remaining}\n` : ""}Reference: ${p.id}\n\n${timing}\n`,
+    html: `<h2>${partial ? "Partial refund issued" : "Refund issued"}</h2><p>Hi ${esc(p.name)}, ${lead}</p><table cellpadding="6"><tr><td>Refunded</td><td><b>${refunded}</b></td></tr>${partial ? `<tr><td>Remaining charged</td><td>${remaining}</td></tr>` : ""}<tr><td>Reference</td><td>${esc(p.id)}</td></tr></table><p>${timing}</p>`,
   };
 }

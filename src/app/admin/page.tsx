@@ -66,8 +66,11 @@ export default async function AdminPage() {
                 <td className="px-4 py-2">{p.status}</td>
                 <td className="px-4 py-2">{p.receiptSentAt ? "sent" : "—"}</td>
                 <td className="px-4 py-2 text-right">
-                  {p.status === "succeeded" && (
-                    <RefundButton id={p.id} label={money(p.amount, p.currency)} />
+                  {(p.status === "succeeded" || p.status === "partially_refunded") && (
+                    <RefundButton
+                      id={p.id}
+                      label={money(p.amount - p.refundedAmount, p.currency)}
+                    />
                   )}
                 </td>
               </tr>
