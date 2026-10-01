@@ -4,6 +4,7 @@ import { db, payments } from "@/db";
 import { requireAdmin } from "@/lib/session";
 import { getOrCreateAdmin } from "@/lib/totp";
 import { logout } from "./actions";
+import RefundButton from "./RefundButton";
 
 export const dynamic = "force-dynamic";
 
@@ -52,6 +53,7 @@ export default async function AdminPage() {
               <th className="px-4 py-2 text-right">Amount</th>
               <th className="px-4 py-2">Status</th>
               <th className="px-4 py-2">Receipt</th>
+              <th className="px-4 py-2"></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-100">
@@ -63,11 +65,16 @@ export default async function AdminPage() {
                 <td className="px-4 py-2 text-right">{money(p.amount, p.currency)}</td>
                 <td className="px-4 py-2">{p.status}</td>
                 <td className="px-4 py-2">{p.receiptSentAt ? "sent" : "—"}</td>
+                <td className="px-4 py-2 text-right">
+                  {p.status === "succeeded" && (
+                    <RefundButton id={p.id} label={money(p.amount, p.currency)} />
+                  )}
+                </td>
               </tr>
             ))}
             {rows.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-zinc-500">
+                <td colSpan={7} className="px-4 py-8 text-center text-zinc-500">
                   No payments yet.
                 </td>
               </tr>

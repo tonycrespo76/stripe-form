@@ -11,8 +11,8 @@ Next.js 16 (App Router) · React 19 · Neon Postgres (Drizzle) · Stripe Payment
 1. `npm install`
 2. Copy `.env.example` to `.env.local` and fill it in (`APP_SECRET`: `openssl rand -base64 32`).
 3. Create a Neon project at https://console.neon.tech, copy the **pooled** connection string into `DATABASE_URL`, then run `npm run db:push`.
-4. Webhook (local): `stripe listen --events payment_intent.succeeded,payment_intent.payment_failed --forward-to localhost:3000/api/stripe/webhook` and put the printed `whsec_…` in `STRIPE_WEBHOOK_SECRET`.
-   Production: add an endpoint for `payment_intent.succeeded` and `payment_intent.payment_failed`.
+4. Webhook (local): `stripe listen --events payment_intent.succeeded,payment_intent.payment_failed,charge.refunded --forward-to localhost:3000/api/stripe/webhook` and put the printed `whsec_…` in `STRIPE_WEBHOOK_SECRET`.
+   Production: add an endpoint for `payment_intent.succeeded`, `payment_intent.payment_failed` and `charge.refunded`.
 5. SMTP2GO: verify your sender domain/address and use it in `MAIL_FROM`.
 6. `npm run dev` → http://localhost:3000. Test card: `4242 4242 4242 4242`.
 

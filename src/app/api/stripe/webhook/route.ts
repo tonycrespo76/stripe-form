@@ -22,6 +22,18 @@ export async function POST(req: Request) {
 
   if (event.type === "payment_intent.succeeded") {
     await markPaidAndSendReceipt(event.data.object.id);
+  } else if (event.type === "charge.refunded") {
+    const charge = event.data.object;
+    const pi = typeof charge.payment_intent === "string" ? charge.payment_intent : charge.payment_intent?.id;
+    if (pi) {
+      await db
+        .update(payments)
+        .set({
+          status: charge.refunded ? "refunded" : "partially_refunded",
+          refundedAt: new Date(),
+        })
+        .where(eq(payments.stripePaymentIntentId, pi));
+    }
   } else if (event.type === "payment_intent.payment_failed") {
     await db
       .update(payments)

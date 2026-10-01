@@ -1,7 +1,11 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import { eq } from "drizzle-orm";
+import { db, payments } from "@/db";
+import { stripe } from "@/lib/stripe";
 import { adminEmails, issueOtp, verifyOtp } from "@/lib/otp";
 import { clearSession, getSession, requireAdmin, setSession } from "@/lib/session";
 import { beginTotpEnrollment, checkTotp, getOrCreateAdmin } from "@/lib/totp";
@@ -75,4 +79,34 @@ export async function confirmEnrollment(prev: FormState, fd: FormData): Promise<
 export async function logout() {
   await clearSession();
   redirect("/admin/login");
+}
+
+/** Full refund of a succeeded payment. Status is also synced by the charge.refunded webhook. */
+export async function refundPayment(_: FormState, fd: FormData): Promise<FormState> {
+  await requireAdmin();
+  const id = Number(fd.get("id"));
+  const [p] = Number.isInteger(id)
+    ? await db.select().from(payments).where(eq(payments.id, id))
+    : [];
+  if (!p) return { error: "Payment not found." };
+  if (p.status !== "succeeded") return { error: "Only succeeded payments can be refunded." };
+
+  try {
+    await stripe().refunds.create(
+      { payment_intent: p.stripePaymentIntentId },
+      { idempotencyKey: `refund-${p.stripePaymentIntentId}` },
+    );
+  } catch (e) {
+    const code = (e as { code?: string }).code;
+    if (code !== "charge_already_refunded") {
+      console.error("Refund failed", e);
+      return { error: (e as Error).message || "Refund failed." };
+    }
+  }
+  await db
+    .update(payments)
+    .set({ status: "refunded", refundedAt: new Date() })
+    .where(eq(payments.id, p.id));
+  revalidatePath("/admin");
+  return {};
 }
